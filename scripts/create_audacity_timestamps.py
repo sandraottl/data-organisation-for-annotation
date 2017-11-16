@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from os.path import splitext
+import argparse
 
 #audacity = 'Y:\SandraOttl\de-enigma\missing_ts\B003_R03/Audio_2016-11-03_14-23-39.968.aup'
 ns = {'aud': "http://audacity.sourceforge.net/xml/"}
@@ -18,8 +19,8 @@ def create_audacity_timestmaps(audacity):
         sequence = wavetrack[0][0]
         numsamples = int(sequence.get('numsamples'))
         duration = numsamples / rate * 1000  # ms
-        starttime = (endtime - duration) * 10000
-        output.write(starttime)
+        starttime = int((endtime - duration) * 10000)
+        output.write(str(starttime))
 
 
 def main():
