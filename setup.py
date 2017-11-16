@@ -10,7 +10,8 @@ setup(name='scripts',
               'insert_annotations = scripts.insert_annotations:main',
               'organise_timestamps = scripts.organise_timestamps:main',
               'split_videos = scripts.split_videos:main',
-              'fleiss_kappa = scripts.fleiss_kappa:main'
+              'fleiss_kappa = scripts.fleiss_kappa:main',
+              'create_audacity_timestamps = scripts.create_audacity_timestamps:main'
           ]
       },
 
