@@ -4,6 +4,7 @@ import argparse
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+import re
 
 
 def check(first_file, second_file, outfile):
@@ -25,18 +26,12 @@ def remove_duplicates(file, outfile):
         df = pd.read_csv(file, delimiter=';')
         df = df.drop_duplicates()
         user_ids = sorted(set(df['UserID']))
-        # df = df.set_index(['UserID'])
         neutrals_removed = 0
         for user_id in user_ids:
-            user_frame = mask(df, 'UserID', [user_id])  # df.loc[user_id]
+            user_frame = mask(df, 'UserID', [user_id])
             audio_data = sorted(set(user_frame['AudioData']))
-            # print(len(audio_data))
-            # user_frame = user_frame.set_index(['AudioData'])
             for data in audio_data:
-                # print(data)
-                # audio_data_frame = df[(df['UserID'] == user_id) & (df['AudioData'] == mask(user_frame, 'AudioData', [data]))]
-                audio_data_frame = mask(user_frame, 'AudioData', [data])  # user_frame.loc[data]
-                # print(audio_data_frame)
+                audio_data_frame = mask(user_frame, 'AudioData', [data])
                 shape_before_removal = audio_data_frame.shape[0] 
                 if shape_before_removal > 1:
                     audio_data_frame = audio_data_frame[audio_data_frame['Answer'] != 'neutral']
@@ -48,6 +43,11 @@ def remove_duplicates(file, outfile):
                 for d in audio_data_list:
                     d.append(removed_neutral)
                     writer.writerow(d)
+
+
+def mask(df, column, values):
+    mask = np.in1d(df[column].values, values)
+    return df[mask]
 
 
 def correct_filenames(old_file, map_file, outfile, missing):
@@ -79,9 +79,48 @@ def merge_files(infile, outfile):
             writer.writerow(line)
 
 
-def mask(df, column, values):
-    mask = np.in1d(df[column].values, values)
-    return df[mask]
+def rename_lines(infile, outfile, remaining):
+    with open(infile, 'r') as infile, open(outfile, 'w', newline='') as outfile, open(remaining, 'w', newline='') as remaining:
+        reader = csv.reader(infile, delimiter=';')
+        writer_out = csv.writer(outfile, delimiter=';')
+        writer_remaining = csv.writer(remaining, delimiter=';')
+        next(reader)
+        prob_regex = r'Prob(.){2}'
+        gender_regex = r'_(m|f)_'
+        filename_regex = r'\d{3}'
+        for line in reader:
+            old_name = line[2]
+            prob = re.search(prob_regex, old_name)
+            gender = re.search(gender_regex, old_name)
+            filename = re.search(filename_regex, old_name)
+            if prob and gender and filename:
+                new_name = '_'.join((gender.group(1), prob.group(0), 'Games', filename.group(0)))
+                writer_out.writerow((line[0], new_name, line[3]))
+            else:
+                writer_remaining.writerow(line)
+
+
+def convert(label):
+    labels = ['neutral', 'fear', 'anger', 'sadness', 'surprise', 'happiness', 'disgust']
+    arousal_w = [0, 0.8, 0.8, -0.4, 0.9, 0.15, 0.5]
+    valence_w = [0, -0.2, -0.4, -0.8, 0.1, 0.95, -0.65]
+    if label not in labels:
+        return 'unsupported emotion', 'unsupported emotion'
+    ind = labels.index(label)
+    arousal = arousal_w[ind]
+    valence = valence_w[ind]
+    return arousal, valence
+
+
+def append_arousal_valance(infile, outfile):
+    with open(infile, 'r') as infile, open(outfile, 'w', newline='') as outfile:
+        reader = csv.reader(infile, delimiter=';')
+        writer = csv.writer(outfile, delimiter=';')
+        writer.writerow(next(reader) + ['Arousal', 'Valence'])
+        for line in reader:
+            arousal_valence = convert(line[2])
+            line += arousal_valence
+            writer.writerow(line)
 
 
 def main_check():
@@ -93,10 +132,10 @@ def main_check():
     check(args['first_file'], args['second_file'], args['outfile'])
 
 
-def main():  # _remove_duplicates
-    parser = argparse.ArgumentParser(description='Write all lines that are in the first file but not in the second file into the third file.')
+def main_remove_duplicates():  # _remove_duplicates
+    parser = argparse.ArgumentParser(description='Remove all duplicates.')
     parser.add_argument('file', help='file')
-    parser.add_argument('outfile', help='destination for lines that are not in the second file but in the first file')
+    parser.add_argument('outfile', help='destination for file without duplicates')
     args = vars(parser.parse_args())
     remove_duplicates(args['file'], args['outfile'])
 
@@ -111,12 +150,29 @@ def main_correct_filenames():  #
     correct_filenames(args['old_file'], args['map_file'], args['outfile'], args['missing'])
 
 
-def main_merge_files():  # 
+def main_merge_files():  # _merge_files
     parser = argparse.ArgumentParser(description='Appends first file to second file.')
     parser.add_argument('infile', help='file to be appended')
     parser.add_argument('outfile', help='file to that the other file is appended')
     args = vars(parser.parse_args())
     merge_files(args['infile'], args['outfile'])
+
+
+def main_rename_lines():  # 
+    parser = argparse.ArgumentParser(description='Appends renamed lines of first file to second file nad write other ones in third file.')
+    parser.add_argument('infile', help='lines to be renamed')
+    parser.add_argument('outfile', help='file to that the renamed lines are appended')
+    parser.add_argument('remaining', help='file to that the not renamed lines are appended')
+    args = vars(parser.parse_args())
+    rename_lines(args['infile'], args['outfile'], args['remaining'])
+
+
+def main():  # _append_arousal_valence
+    parser = argparse.ArgumentParser(description='Appends arousal and valence values.')
+    parser.add_argument('infile', help='file to be changed')
+    parser.add_argument('outfile', help='file with arousal and valence values')
+    args = vars(parser.parse_args())
+    append_arousal_valance(args['infile'], args['outfile'])
 
 
 if __name__ == '__main__':
