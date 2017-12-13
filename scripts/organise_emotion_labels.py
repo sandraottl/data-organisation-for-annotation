@@ -123,6 +123,33 @@ def append_arousal_valance(infile, outfile):
             writer.writerow(line)
 
 
+def count_instances(infile, outfile):
+    with open(infile, 'r') as infile, open(outfile, 'w', newline='') as outfile:
+        reader = csv.reader(infile, delimiter=';')
+        writer = csv.writer(outfile, delimiter=';')
+        writer.writerow(['Proband', 'Task', 'Instances'])
+        data_dict = {}
+        prob_regex = r'Prob(.){2}'
+        task_regex = r'(Games|Pictures|Story|Question)'
+        for line in reader:
+            name = line[1]
+            prob = re.search(prob_regex, name)
+            task = re.search(task_regex, name)
+            prob_name = prob.group(0)
+            task_name = task.group(0)
+            if prob_name in data_dict:
+                if task_name in data_dict[prob_name]:
+                    data_dict[prob_name][task_name] += 1
+                else:
+                    data_dict[prob_name][task_name] = 1
+            else:
+                data_dict[prob_name] = {}
+                data_dict[prob_name][task_name] = 1
+        for pn in data_dict:
+            for t in data_dict[pn]:
+                writer.writerow([pn, t, data_dict[pn][t]])
+
+
 def main_check():
     parser = argparse.ArgumentParser(description='Write all lines that are in the first file but not in the second file into the third file.')
     parser.add_argument('first_file', help='first file (containing lines to check if they are in the second file)')
@@ -167,12 +194,20 @@ def main_rename_lines():  #
     rename_lines(args['infile'], args['outfile'], args['remaining'])
 
 
-def main():  # _append_arousal_valence
+def main_append_arousal_valence():  # 
     parser = argparse.ArgumentParser(description='Appends arousal and valence values.')
     parser.add_argument('infile', help='file to be changed')
     parser.add_argument('outfile', help='file with arousal and valence values')
     args = vars(parser.parse_args())
     append_arousal_valance(args['infile'], args['outfile'])
+
+
+def main():  # 
+    parser = argparse.ArgumentParser(description='Create table with counted instances.')
+    parser.add_argument('infile', help='file to be counted')
+    parser.add_argument('outfile', help='file obtaining counted instances per proband and task')
+    args = vars(parser.parse_args())
+    count_instances(args['infile'], args['outfile'])
 
 
 if __name__ == '__main__':

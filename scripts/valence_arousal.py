@@ -27,7 +27,7 @@ def takeClosest(myList, myNumber):
 
 def speech_intervals(infile, elanfile, outfile):
     with open(elanfile, 'r') as ef:
-        with open(outfile, 'w') as of:
+        with open(outfile, 'w', newline='') as of:
             df = pd.read_csv(infile, sep='\t', names=['time', 'value'])
             reader_elan = csv.reader(ef, delimiter='\t')
             writer = csv.writer(of, delimiter='\t')
@@ -41,19 +41,35 @@ def speech_intervals(infile, elanfile, outfile):
 
 
 def second_intervals(infile, outfile):
-    with open(outfile, 'w') as of:
-        df = pd.read_csv(infile, sep='\t', names=['time', 'value'])
-        writer = csv.writer(of, delimiter='\t')
-        for i in range(1000000000000):
-            start = i
-            stop = i + 1
-            series = df[(df['time'] < stop) & (df['time'] > start)]['value']
-            # print(series)
-            if series.empty:
-                break
-            value = (series.mean(axis=0)) / 1000
-            label = takeClosest(VA_list, value)
-            writer.writerow([start, stop, label])
+    with open(outfile, 'w', newline='') as of:
+        try:
+            df = pd.read_csv(infile, sep='\t', names=['time', 'value'])
+            # df['time'] = df['time'].apply(lambda x: x.replace(',', '.'))
+            writer = csv.writer(of, delimiter='\t')
+            for i in range(1000000000000):
+                start = i
+                stop = i + 1
+                series = df[(df['time'] < stop) & (df['time'] > start)]['value']
+                # print(series)
+                if series.empty:
+                    break
+                value = (series.mean(axis=0)) / 1000
+                label = takeClosest(VA_list, value)
+                writer.writerow([start, stop, label])
+        except:
+            df = pd.read_csv(infile, sep='\t', names=['time', 'value'], decimal=',')
+            # df['time'] = df['time'].apply(lambda x: x.replace(',', '.'))
+            writer = csv.writer(of, delimiter='\t')
+            for i in range(1000000000000):
+                start = i
+                stop = i + 1
+                series = df[(df['time'] < stop) & (df['time'] > start)]['value']
+                # print(series)
+                if series.empty:
+                    break
+                value = (series.mean(axis=0)) / 1000
+                label = takeClosest(VA_list, value)
+                writer.writerow([start, stop, label])
 
 
 if __name__ == '__main__':
