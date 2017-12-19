@@ -1,11 +1,10 @@
 import os
 import re
-from os.path import split, join, isfile, dirname
-from os import listdir
+from os.path import join, isfile, dirname, basename
 import argparse
 
 
-def rename(folder):
+def rename_dragana(folder):
     child_regex = r'-S\d{3}_'
     session_regex = r'_(T|R)\d{2}'
     ext_regex = r'(eaf|pfsx)'
@@ -17,11 +16,19 @@ def rename(folder):
         os.rename(filename, join(dirname(filename), 'Dragana_' + child + session + '.' + ext))
 
 
+def rename_del_tier(folder):  # remove first 14 characters
+    filenames = [join(folder, file) for file in os.listdir(folder) if isfile(join(folder, file))]
+    for filename in filenames:
+        new_basename = basename(filename)[14:]
+        new_filename = join(dirname(filename), new_basename)
+        os.rename(filename, new_filename)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Rename files in folder.')
     parser.add_argument('folder', help='folder containing projects to be renamed')
     args = vars(parser.parse_args())
-    rename(args['folder'])
+    rename_del_tier(args['folder'])
 
 
 if __name__ == '__main__':

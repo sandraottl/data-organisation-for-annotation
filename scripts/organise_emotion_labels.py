@@ -123,7 +123,7 @@ def append_arousal_valance(infile, outfile):
             writer.writerow(line)
 
 
-def count_instances(infile, outfile):
+def count_file_instances(infile, outfile):
     with open(infile, 'r') as infile, open(outfile, 'w', newline='') as outfile:
         reader = csv.reader(infile, delimiter=';')
         writer = csv.writer(outfile, delimiter=';')
@@ -148,6 +148,33 @@ def count_instances(infile, outfile):
         for pn in data_dict:
             for t in data_dict[pn]:
                 writer.writerow([pn, t, data_dict[pn][t]])
+
+
+def count_instances(infile, outfile):
+    with open(infile, 'r') as infile, open(outfile, 'w', newline='') as outfile:
+        reader = csv.reader(infile, delimiter=';')
+        writer = csv.writer(outfile, delimiter=';')
+        writer.writerow(['Proband', 'Task', 'Instances'])
+        data_dict = {}
+        prob_regex = r'Prob(.){2}'
+        task_regex = r'(Games|Pictures|Story|Question)'
+        for line in reader:
+            name = line[1]
+            prob = re.search(prob_regex, name)
+            task = re.search(task_regex, name)
+            prob_name = prob.group(0)
+            task_name = task.group(0)
+            if prob_name in data_dict:
+                if task_name in data_dict[prob_name]:
+                    data_dict[prob_name][task_name].add(name)
+                else:
+                    data_dict[prob_name][task_name] = set()
+            else:
+                data_dict[prob_name] = {}
+                data_dict[prob_name][task_name] = set()
+        for pn in data_dict:
+            for t in data_dict[pn]:
+                writer.writerow([pn, t, len(data_dict[pn][t])])
 
 
 def main_check():
@@ -207,6 +234,7 @@ def main():  #
     parser.add_argument('infile', help='file to be counted')
     parser.add_argument('outfile', help='file obtaining counted instances per proband and task')
     args = vars(parser.parse_args())
+    # count_file_instances(args['infile'], args['outfile'])
     count_instances(args['infile'], args['outfile'])
 
 

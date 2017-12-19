@@ -47,7 +47,7 @@ def parseXML(filepath: str) -> Element:
     return ElementTree.parse(filepath).getroot()
 
 
-def annotationsToAudacityStr(annotations: list, tiers=[3]) -> str:
+def annotationsToAudacityStr(annotations: list, tiers=[1]) -> str:  # give correct tier name!
     def toStr(x: Annotation, i: int) -> str:
         return "\t".join([str(x.start / 1000.), str(x.end / 1000.), x.tiers[i]])
     return "\n".join([toStr(a, t) for a in annotations for t in tiers if t < len(a.tiers)])
@@ -75,7 +75,7 @@ def _find_projects(folder):
 def main():
     parser = argparse.ArgumentParser(description='Extract labels from elan projects in given folder.')
     parser.add_argument('folder', help='folder containing elan projects')
-    parser.add_argument('outfolder', help='folder containing elan labels projects')
+    parser.add_argument('outfolder', help='folder containing extracted elan labels')
     args = vars(parser.parse_args())
     eaf_files = _find_projects(args['folder'])
     for project in eaf_files:
