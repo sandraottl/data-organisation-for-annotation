@@ -142,18 +142,27 @@ def main_insert_gold_standard():
 
 def main_batch_insert_gold_standard():
     parser = argparse.ArgumentParser(description='Insert elan gold standard labels into an existing elan file on a specific tier.')
-    parser.add_argument('audacity', help='folder with elan annotations file (gold standard)')
+    parser.add_argument('audacity', help='folder with elan annotations files (gold standard)')
     parser.add_argument('elan', help='folder with existing elan files')
     parser.add_argument('tier', help='specific tier in the elan file on which to insert the audacity labels')
     args = vars(parser.parse_args())
     eafs = sorted([join(args['elan'], file) for file in listdir(args['elan']) if file.endswith('.eaf')])
     csvs = sorted([join(args['audacity'], file) for file in listdir(args['audacity']) if file.endswith('.csv')])
-    for csv, elan in tqdm(zip(csvs,eafs)):
-        delete_labels_of_tier(elan, args['tier'])
-        print('deleted all labels of tier ' + args['tier'])
-        offset = 0
-        insert_audacity_annotations_into_elan(csv, elan, args['tier'], offset)
+    to_do = list(zip(csvs,eafs))
+    for csv, elan in tqdm(to_do):
+        try:
+            delete_labels_of_tier(elan, args['tier'])
+            print('deleted all labels of tier ' + args['tier'])
+            offset = 0
+            insert_audacity_annotations_into_elan(csv, elan, args['tier'], offset)
+        except:
+            to_do.append((csv,elan))
+            print(to_do)
+
 
 
 if __name__ == '__main__':
     main_batch_insert_gold_standard()
+
+
+# python .\insert_annotations.py Y:\SandraOttl\de-enigma\ELAN\completed\Serbian\elan_labels_tier1\majority_vote_0.001 Y:\SandraOttl\de-enigma\ELAN\completed\Serbian\Tier3_gold_standard 1

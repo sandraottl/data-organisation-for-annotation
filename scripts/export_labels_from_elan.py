@@ -8,6 +8,7 @@ from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 from os.path import join, dirname, splitext, relpath
 from os import walk
+from tqdm import tqdm
 
 
 Annotation = namedtuple("Annotation", ["start", "end", "tiers", "ANNOTATION_ID", "CVE_REF"])
@@ -23,39 +24,42 @@ def parseAnnotationsFromEafFile(eafFilepath: str) -> list:
     for numTier in range(4):
         for tier in xmlRoot.iter("TIER"):
             if ("Tier %d" % numTier) in tier.attrib["LINGUISTIC_TYPE_REF"]:
+                # print(len(list(tier.iter("ALIGNABLE_ANNOTATION"))))
                 tierAnnotations.append([
                     Annotation(
                         timeSlots[x.attrib["TIME_SLOT_REF1"]],
                         timeSlots[x.attrib["TIME_SLOT_REF2"]],
-                        [x[0].text],
+                        x[0].text,
                         x.attrib["ANNOTATION_ID"],
                         x.attrib["CVE_REF"]
                     )
                     for x in tier.iter("ALIGNABLE_ANNOTATION")
                     if "CVE_REF" in x.keys()
                 ])
-    annotations = tierAnnotations[0]
-    for tierAnnotation in tierAnnotations[1:]:
-        for a in tierAnnotation:
-            for b in annotations:
-                if b.start == a.start and b.end == a.end:
-                    b.tiers.extend(a.tiers if a.tiers else [""])
-    return annotations
+    #annotations = tierAnnotations[0]
+    #print(len(annotations))
+    #for tierAnnotation in tierAnnotations[1:]:
+    #    for a in tierAnnotation:
+    #        for b in annotations:
+    #            if b.start == a.start and b.end == a.end:
+    #                b.tiers.extend(a.tiers if a.tiers else [""])
+    #print(len(annotations))
+    return tierAnnotations
 
 
 def parseXML(filepath: str) -> Element:
     return ElementTree.parse(filepath).getroot()
 
 
-def annotationsToAudacityStr(annotations: list, tiers=[1]) -> str:  # give correct tier name!
-    def toStr(x: Annotation, i: int) -> str:
-        return "\t".join([str(x.start / 1000.), str(x.end / 1000.), x.tiers[i]])
-    return "\n".join([toStr(a, t) for a in annotations for t in tiers if t < len(a.tiers)])
+def annotationsToAudacityStr(annotations: list) -> str:
+    def toStr(x: Annotation) -> str:
+        return "\t".join([str(x.start / 1000.), str(x.end / 1000.), x.tiers])
+    return "\n".join([toStr(a) for a in annotations])
 
 
-def convertEafToCsv(eafFilepath: str, csvFilepath: str, annotationsToStrFunction) -> None:
+def convertEafToCsv(eafFilepath: str, csvFilepath: str, annotationsToStrFunction, tier: int) -> None:
     print("Converting", eafFilepath, "to", csvFilepath, "...")
-    annotations = parseAnnotationsFromEafFile(eafFilepath)
+    annotations = parseAnnotationsFromEafFile(eafFilepath)[tier]
     csvString = annotationsToStrFunction(annotations)
     os.makedirs(dirname(csvFilepath), exist_ok=True)
     with open(csvFilepath, "w") as f:
@@ -76,11 +80,12 @@ def main():
     parser = argparse.ArgumentParser(description='Extract labels from elan projects in given folder.')
     parser.add_argument('folder', help='folder containing elan projects')
     parser.add_argument('outfolder', help='folder containing extracted elan labels')
+    parser.add_argument('-tier', type=int, help='tier name', default=1)
     args = vars(parser.parse_args())
     eaf_files = _find_projects(args['folder'])
-    for project in eaf_files:
+    for project in tqdm(eaf_files):
         output = join(args['outfolder'], splitext(relpath(project, start=args['folder']))[0] + '.csv')
-        convertEafToCsv(project, output, annotationsToAudacityStr)
+        convertEafToCsv(project, output, annotationsToAudacityStr, args['tier'])
 
 
 if __name__ == '__main__':

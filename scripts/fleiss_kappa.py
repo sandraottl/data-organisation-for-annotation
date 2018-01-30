@@ -54,7 +54,8 @@ def combine_annotators(annotators, tier):
 
 
 def majority_vote(mat, interval, tier):
-    majority = medfilt(argmax(mat, axis=1)).astype(int)
+    # majority = medfilt(argmax(mat, axis=1)).astype(int)
+    majority = argmax(mat, axis=1)
     print(majority)
     current_annotation = None
     annotations = []

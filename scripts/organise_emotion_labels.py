@@ -1,10 +1,12 @@
 import csv
-from os.path import splitext
+import os
+from os.path import splitext, join
 import argparse
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import re
+import functools
 
 
 def check(first_file, second_file, outfile):
@@ -156,7 +158,7 @@ def count_instances(infile, outfile):
         writer = csv.writer(outfile, delimiter=';')
         writer.writerow(['Proband', 'Task', 'Instances'])
         data_dict = {}
-        prob_regex = r'Prob(.){2}'
+        prob_regex = r'(m|f)_Prob(.){2}'
         task_regex = r'(Games|Pictures|Story|Question)'
         for line in reader:
             name = line[1]
@@ -169,12 +171,90 @@ def count_instances(infile, outfile):
                     data_dict[prob_name][task_name].add(name)
                 else:
                     data_dict[prob_name][task_name] = set()
+                    data_dict[prob_name][task_name].add(name)
             else:
                 data_dict[prob_name] = {}
                 data_dict[prob_name][task_name] = set()
+                data_dict[prob_name][task_name].add(name)
         for pn in data_dict:
             for t in data_dict[pn]:
                 writer.writerow([pn, t, len(data_dict[pn][t])])
+
+
+def check_number(excel, txt_folder, missing_audio, existing_annotations):  # not finished
+    with open(excel, 'r') as excel, open(txt_folder, 'r') as folder, open(missing_audio, 'w', newline='') as audio, open(existing_annotations, 'w', newline='') as ann:
+        reader = csv.reader(excel, delimiter=';')
+        writer_audio = csv.writer(audio, delimiter=';')
+        writer_ann = csv.writer(ann, delimiter=';')
+        next(reader)
+        regex = r'Prob(.){2}'
+        for line in reader:
+            name = line[1]
+            prob = re.search(regex, name)
+            prob_name = prob.group(0)
+            for file in os.listdir(folder):
+                filename = join(folder, file)
+                if prob_name in file:
+                    with open(filename, 'r') as f:
+                        reader_file = csv.reader(f, delimiter=';')
+                        annotation_line_in_audio = False
+                        for line in reader_file:
+                            name_txt = splitext(line[0])
+                            if name == name_txt:
+                                annotation_line_in_audio = True
+                                writer_ann.writerow(name)
+                                break
+                        if not annotation_line_in_audio:
+                            writer_audio.writerow(name)
+
+
+def search_for_missing(annotations, instances, expression):
+    with open(annotations, 'r') as ann, open(instances, 'r') as inst:
+        reader_ann = csv.reader(ann, delimiter=';')
+        next(reader_ann)
+        annotations = set([annotation[1] for annotation in reader_ann if annotation[1].startswith(expression)])
+        instances = set(splitext(instance)[0] for instance in inst)
+        difference_missing_instances = annotations - instances
+        difference_missing_annotations = instances - annotations
+        print('Instances are missing for these annotations: ' + str(difference_missing_instances))
+        print('Annotations are missing for these instances: ' + str(difference_missing_annotations))
+
+
+def create_final_label_aggregated(annotations, ann_out, neutral_weight=0.3):
+    with open(annotations, 'r') as ann_in, open(ann_out, 'w') as ann_out:
+        df = pd.read_csv(ann_in, delimiter=';')
+        fnc = functools.partial(wavg, df=df, neutral_weight=neutral_weight)
+        df[['Arousal', 'Valence']] = df[['Arousal', 'Valence']].apply(lambda x: pd.to_numeric(x, errors='coerce'))
+        # print(df['Answer'].groupby(df['AudioData']).value_counts().index[0])
+        majority = lambda x: x.value_counts().index[0] if not x.value_counts().index[0] == 'neutral' or len(x.value_counts()) < 2 or int(x.value_counts()[0] * neutral_weight) > x.value_counts()[1] else x.value_counts().index[1] 
+        # df['Majority Answer'] = df['Answer'].groupby(df['AudioData']).transform(majority)
+        # df['Mean Arousal'] = df['Arousal'].groupby(df['AudioData']).transform(fnc)
+        # df['Mean Valence'] = df['Valence'].groupby(df['AudioData']).transform(fnc)
+        grouped_df = df.groupby(['AudioData']).agg({'Arousal': fnc, 'Valence': fnc, 'Answer': majority})
+        grouped_df.to_csv(ann_out, sep=';', float_format='%.2f')
+
+
+def create_final_label(annotations, ann_out, neutral_weight=0.3):
+    with open(annotations, 'r') as ann_in, open(ann_out, 'w') as ann_out:
+        df = pd.read_csv(ann_in, delimiter=';')
+        fnc = functools.partial(wavg, df=df, neutral_weight=neutral_weight)
+        df[['Arousal', 'Valence']] = df[['Arousal', 'Valence']].apply(lambda x: pd.to_numeric(x, errors='coerce'))
+        # print(df['Answer'].groupby(df['AudioData']).value_counts().index[0])
+        majority = lambda x: x.value_counts().index[0] if not x.value_counts().index[0] == 'neutral' or len(x.value_counts()) < 2 or int(x.value_counts()[0] * neutral_weight) > x.value_counts()[1] else x.value_counts().index[1] 
+        df['Majority Answer'] = df['Answer'].groupby(df['AudioData']).transform(majority)
+        df['Mean Arousal'] = df['Arousal'].groupby(df['AudioData']).transform(fnc)
+        df['Mean Valence'] = df['Valence'].groupby(df['AudioData']).transform(fnc)
+        # grouped_df = df.groupby(['AudioData']).agg({'Arousal': fnc, 'Valence': fnc, 'Answer': majority})
+        df.to_csv(ann_out, sep=';', float_format='%.2f')
+
+
+def wavg(g, df, neutral_weight=0.2):
+    weighted_neutral_count=int(df.ix[g.index].loc[df['Answer']=='neutral'].count()[0]*neutral_weight)
+    wanted_sum=g.sum()
+    count=g.count()
+
+
+    return wanted_sum / (count-weighted_neutral_count)
 
 
 def main_check():
@@ -229,7 +309,7 @@ def main_append_arousal_valence():  #
     append_arousal_valance(args['infile'], args['outfile'])
 
 
-def main():  # 
+def main_count_instances():  # 
     parser = argparse.ArgumentParser(description='Create table with counted instances.')
     parser.add_argument('infile', help='file to be counted')
     parser.add_argument('outfile', help='file obtaining counted instances per proband and task')
@@ -238,5 +318,22 @@ def main():  #
     count_instances(args['infile'], args['outfile'])
 
 
+def main_search_for_missing():  # 
+    parser = argparse.ArgumentParser(description='Print all annotations that are not in instances and all instances that are not in annotations.')
+    parser.add_argument('annotations', help='file containing annotations')
+    parser.add_argument('instances', help='file containing audio instances')
+    parser.add_argument('expression', help='name to search')
+    args = vars(parser.parse_args())
+    search_for_missing(args['annotations'], args['instances'], args['expression'])
+
+
+def main_final_label():
+    parser = argparse.ArgumentParser(description='Create new column containing mean values of answer-column.')
+    parser.add_argument('annotations_in', help='annotations file')
+    parser.add_argument('annotations_out', help='output (annotations file plus new column)')
+    args = vars(parser.parse_args())
+    create_final_label_aggregated(args['annotations_in'], args['annotations_out'])
+
+
 if __name__ == '__main__':
-    main()
+    main_final_label()

@@ -30,7 +30,7 @@ def insert_tiers(source, target):
 
 def main():
     parser = argparse.ArgumentParser(description='Inserts tier 4,5 and 6 into an existing elan project.')
-    parser.add_argument('source', help='file containing to be inserted controlled vocabulary and tiers')
+    parser.add_argument('source', help='file containing to be inserted controlled vocabulary and tiers (cv.xml)')
     parser.add_argument('folder', help='folder with project files containing all tiers')
     args = vars(parser.parse_args())
     for eaf in tqdm(find_by_glob('*.eaf', args['folder'])):

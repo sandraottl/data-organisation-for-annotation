@@ -16,10 +16,10 @@ def rename_dragana(folder):
         os.rename(filename, join(dirname(filename), 'Dragana_' + child + session + '.' + ext))
 
 
-def rename_del_tier(folder):  # remove first 14 characters
+def rename(folder):  # remove first 8 characters
     filenames = [join(folder, file) for file in os.listdir(folder) if isfile(join(folder, file))]
     for filename in filenames:
-        new_basename = basename(filename)[14:]
+        new_basename = basename(filename)[8:]
         new_filename = join(dirname(filename), new_basename)
         os.rename(filename, new_filename)
 
@@ -28,7 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description='Rename files in folder.')
     parser.add_argument('folder', help='folder containing projects to be renamed')
     args = vars(parser.parse_args())
-    rename_del_tier(args['folder'])
+    rename(args['folder'])
 
 
 if __name__ == '__main__':
