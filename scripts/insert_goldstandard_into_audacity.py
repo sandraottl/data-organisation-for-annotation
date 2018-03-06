@@ -21,9 +21,9 @@ def calc_offset(elan_timestamps, audacity_timestamps):
 
 
 def shift_labels(elan, audacity_folder, offset):
-    audacity = join(audacity_folder, 'audacity_labels.txt')
+    audacity = join(audacity_folder, 'audacity_goldstandard_S059_T02.txt')  # audacity_labels
     with open(elan, 'r', newline='') as el, open(audacity, 'w', newline='', encoding='utf-8') as aud:
-        reader = csv.reader(el, delimiter=';')
+        reader = csv.reader(el, delimiter='\t')
         writer = csv.writer(aud, delimiter='\t')
         counter = 0
         for line in reader:
@@ -37,7 +37,7 @@ def shift_labels(elan, audacity_folder, offset):
 
 def insert_elan_annotations_into_audacity(audacity_folder, counter):
     audacity_project_path = [join(audacity_folder, file) for file in listdir(audacity_folder) if file.endswith('.aup')][0]
-    audacity_label_file_path = join(audacity_folder, 'audacity_labels.txt')
+    audacity_label_file_path = join(audacity_folder, 'audacity_goldstandard_S022_T01.txt')  # audacity_labels
     with open(audacity_label_file_path, 'r', encoding='utf-8') as labels:
         reader = csv.reader(labels, delimiter='\t')
         ET.register_namespace('', 'http://audacity.sourceforge.net/xml/')
@@ -63,8 +63,8 @@ def main():
     offset = calc_offset(args['elan_timestamps'], args['audacity_timestamps'])
     counter = shift_labels(args['elan'], args['audacity_folder'], offset)
     print('created audacity labels file')
-    insert_elan_annotations_into_audacity(args['audacity_folder'], counter)
-    print('done')
+    #insert_elan_annotations_into_audacity(args['audacity_folder'], counter)
+    #print('done')
 
 
 if __name__ == '__main__':

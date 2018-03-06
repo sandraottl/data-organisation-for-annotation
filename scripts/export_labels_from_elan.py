@@ -21,7 +21,7 @@ def parseAnnotationsFromEafFile(eafFilepath: str) -> list:
         for x in xmlRoot.iter('TIME_SLOT')
     }
     tierAnnotations = []
-    for numTier in range(4):
+    for numTier in range(7):
         for tier in xmlRoot.iter("TIER"):
             if ("Tier %d" % numTier) in tier.attrib["LINGUISTIC_TYPE_REF"]:
                 # print(len(list(tier.iter("ALIGNABLE_ANNOTATION"))))

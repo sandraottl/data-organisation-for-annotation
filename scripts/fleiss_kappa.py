@@ -162,11 +162,11 @@ def session_names(folder):
     return sessions_dict
 
 
-def main_fleiss_kappa():  # 
+def main_fleiss_kappa():
     parser = argparse.ArgumentParser(description='Compute Fleiss Kappa of three annotation files.')
     # parser.add_argument('annotators', nargs='+', help='files containing (audacity) labels from 3 different annotators for the same project')
     parser.add_argument('input', help='folder containing all annotation files')
-    parser.add_argument('-interval', type=Decimal, help='quantisation interval in seconds', default=Decimal('0.1'))
+    parser.add_argument('-interval', type=Decimal, help='quantisation interval in seconds', default=Decimal('0.001'))
     parser.add_argument('-tier', help='tier type (0, 1, 2)', type=int, default=2)
     # parser.add_argument('output', help='output file destination')
     args = vars(parser.parse_args())
@@ -189,7 +189,7 @@ def main_fleiss_kappa():  #
             outfile.write(str(fleiss_kappa))
 
 
-def main_majority_vote():  # 
+def main_majority_vote():
     parser = argparse.ArgumentParser(description='Create Majority Vote of three annotation files.')
     parser.add_argument('input', help='folder containing all annotation files')
     parser.add_argument('-interval', type=Decimal, help='quantisation interval in seconds', default=Decimal('0.001'))
@@ -212,7 +212,8 @@ def main_majority_vote():  #
 
 
 if __name__ == '__main__':
-    main_majority_vote()
+    #main_majority_vote()
+    main_fleiss_kappa()
 
 
 
