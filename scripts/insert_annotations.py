@@ -1,8 +1,10 @@
 import xml.etree.ElementTree as ET
-from os import listdir
+from os import listdir, walk
 from os.path import join
 import argparse
 import csv
+import re
+import fnmatch
 from tqdm import tqdm
 #from utils import find_by_glob
 #from tqdm import tqdm
@@ -12,6 +14,8 @@ cv_map_AV = {'-1': {'text': '-1', 'cv_id': 'cveid0'}, '-0.5': {'text': '-0.5', '
 # cv_map_1 = {'speech': {'text': 'speech', 'cv_id': 'cveid0'}, 'non-speech': {'text': 'non-speech', 'cv_id': 'cveid2'}, 'speech-like': {'text': 'speech-like', 'cv_id': 'cveid1'}, 'shouting': {'text': 'shouting', 'cv_id': 'cveid4'}, 'unsure': {'text': 'unsure', 'cv_id': 'cveid3'}}
 cv_map_1 = {'speech': {'text': 'speech', 'cv_id': 'cveid0'}, 'non-speech': {'text': 'non-speech', 'cv_id': 'cveid2'}, 'speech-like': {'text': 'speech-like', 'cv_id': 'cveid1'}, 'shouting (speech)': {'text': 'shouting (speech)', 'cv_id': 'cveid4'}, 'shouting (non-speech)': {'text': 'shouting (non-speech)', 'cv_id': 'cveid3'}, 'shouting (speech-like)': {'text': 'shouting (speech-like)', 'cv_id': 'cveid11'}, 'unsure': {'text': 'unsure', 'cv_id': 'cveid7'}}
 cv_map_2 = {'echolalia (immediate)': {'text': 'echolalia (immediate)', 'cv_id': 'cveid0'}, 'echolalia (delayed)': {'text': 'echolalia (delayed)', 'cv_id': 'cveid9'}, 'Another ASC Vocal Behaviour': {'text': 'Another ASC Vocal Behaviour', 'cv_id': 'cveid1'}, 'irregualr intonation': {'text': 'irregualr intonation', 'cv_id': 'cveid2'}, 'not specific to ASC': {'text': 'not specific to ASC', 'cv_id': 'cveid8'}, 'unsure (echolalia)': {'text': 'unsure (echolalia)', 'cv_id': 'cveid5'}, 'unsure (ASC behaviour)': {'text': 'unsure (ASC behaviour)', 'cv_id': 'cveid7'}}
+
+session_regex = r'((B|S)\d{3}_(T|R)\d{2})R{0,1}'
 
 
 def create_dict(el_tree, tier_name):
@@ -74,11 +78,11 @@ def insert_audacity_annotations_into_elan_deprecated(audacity, elan, tier_name, 
                 annotation_value.text = cv_map[label]['text']  # cv_map
         tree.write(elan, encoding='utf-8', xml_declaration=True)
 
-def insert_audacity_annotations_into_elan(audacity, elan, tier_name, offset):
+def insert_audacity_annotations_into_elan(audacity, elan, tier_name, offset, cve_map=False):
     # next line for gold standard
     tier_name = 'Tier ' + tier_name
     with open(audacity, 'r') as aud:
-        reader_aud = csv.reader(aud, delimiter=';')  # sometimes \t
+        reader_aud = csv.reader(aud, delimiter=';')  # sometimes \t or ;
         tree = ET.parse(elan)
         cv_map = create_dict(tree, tier_name)
         root = tree.getroot()
@@ -96,7 +100,10 @@ def insert_audacity_annotations_into_elan(audacity, elan, tier_name, offset):
                 tier = [tier for tier in root.findall('TIER') if tier.attrib['TIER_ID'].startswith(tier_name)][0]
                 num_annotations = len(list(tier))
                 annotation = ET.SubElement(tier, 'ANNOTATION')
-                alignable_annotation = ET.SubElement(annotation, 'ALIGNABLE_ANNOTATION', attrib={'ANNOTATION_ID': 'a' + str(num_annotations + 1), 'CVE_REF': cv_map[label], 'TIME_SLOT_REF1': ts1, 'TIME_SLOT_REF2': ts2})  # cv_map
+                if cve_map:
+                    alignable_annotation = ET.SubElement(annotation, 'ALIGNABLE_ANNOTATION', attrib={'ANNOTATION_ID': 'a' + str(num_annotations + 1), 'CVE_REF': cv_map[label], 'TIME_SLOT_REF1': ts1, 'TIME_SLOT_REF2': ts2})  # cv_map
+                else:
+                    alignable_annotation = ET.SubElement(annotation, 'ALIGNABLE_ANNOTATION', attrib={'ANNOTATION_ID': 'a' + str(num_annotations + 1), 'TIME_SLOT_REF1': ts1, 'TIME_SLOT_REF2': ts2})
                 annotation_value = ET.SubElement(alignable_annotation, 'ANNOTATION_VALUE')
                 annotation_value.text = label  # cv_map
         tree.write(elan, encoding='utf-8', xml_declaration=True)
@@ -111,6 +118,14 @@ def delete_labels_of_tier(elan, tier_name):
         tier.remove(element)
     tree.write(elan, encoding='utf-8', xml_declaration=True)
 
+
+def _find_projects(folder, ext):
+    globexpression = '*.' + ext
+    reg_expr = re.compile(fnmatch.translate(globexpression), re.IGNORECASE)
+    txts = []
+    for root, dirs, files in walk(folder, topdown=True):
+        txts += [join(root, j) for j in files if re.match(reg_expr, j)]  # and not j.endswith(ignore_expr)
+    return txts
 
 
 def main_insert_aud_in_elan():
@@ -140,7 +155,7 @@ def main_insert_gold_standard():
     insert_audacity_annotations_into_elan(args['audacity'], args['elan'], args['tier'], offset)
 
 
-def main_batch_insert_gold_standard():
+def main_batch_insert_gold_standard_old():
     parser = argparse.ArgumentParser(description='Insert elan gold standard labels into an existing elan file on a specific tier.')
     parser.add_argument('audacity', help='folder with elan annotations files (gold standard)')
     parser.add_argument('elan', help='folder with existing elan files')
@@ -155,10 +170,35 @@ def main_batch_insert_gold_standard():
             print('deleted all labels of tier ' + args['tier'])
             offset = 0
             insert_audacity_annotations_into_elan(csv, elan, args['tier'], offset)
-        except:
+        except e:
             to_do.append((csv,elan))
             print(to_do)
+            print(e)
 
+
+def main_batch_insert_gold_standard():
+    parser = argparse.ArgumentParser(description='Insert elan gold standard labels into an existing elan file on a specific tier.')
+    parser.add_argument('audacity', help='folder with elan annotations files (gold standard)')
+    parser.add_argument('elan', help='folder with existing elan files')
+    parser.add_argument('tier', help='specific tier in the elan file on which to insert the audacity labels')
+    args = vars(parser.parse_args())
+    eafs = _find_projects(args['elan'], 'eaf')
+    csvs = _find_projects(args['audacity'], 'csv')
+    sessions = dict()
+    for eaf in eafs:
+        session = re.search(session_regex, eaf).group(1)
+        sessions[session] = [eaf]
+    for csv in csvs:
+        session = re.search(session_regex, csv).group(1)
+        sessions[session] += [csv]
+    #print(sessions)
+    for session, files in tqdm(sessions.items()):
+        print(session)
+        elan, csv = files
+        delete_labels_of_tier(elan, args['tier'])
+        print('deleted all labels of tier ' + args['tier'])
+        offset = 0
+        insert_audacity_annotations_into_elan(csv, elan, args['tier'], offset)
 
 
 if __name__ == '__main__':

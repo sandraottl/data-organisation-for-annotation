@@ -47,6 +47,36 @@ def parseAnnotationsFromEafFile(eafFilepath: str) -> list:
     return tierAnnotations
 
 
+def tier3parseAnnotationsFromEafFile(eafFilepath: str) -> list:  # tier 3
+    xmlRoot = parseXML(eafFilepath)
+    timeSlots = {
+        str(x.attrib["TIME_SLOT_ID"]): int(x.attrib["TIME_VALUE"])
+        for x in xmlRoot.iter('TIME_SLOT')
+    }
+    tierAnnotations = []
+    for numTier in range(7):
+        for tier in xmlRoot.iter("TIER"):
+            if ("Tier %d" % numTier) in tier.attrib["LINGUISTIC_TYPE_REF"]:
+                tierAnnotations.append([
+                    Annotation(
+                        timeSlots[x.attrib["TIME_SLOT_REF1"]],
+                        timeSlots[x.attrib["TIME_SLOT_REF2"]],
+                        x[0].text,
+                        x.attrib["ANNOTATION_ID"],
+                        x.attrib["CVE_REF"]
+                    )
+                    if "CVE_REF" in x.keys()
+                    else Annotation(
+                        timeSlots[x.attrib["TIME_SLOT_REF1"]],
+                        timeSlots[x.attrib["TIME_SLOT_REF2"]],
+                        x[0].text,
+                        x.attrib["ANNOTATION_ID"],
+                        None)
+                    for x in tier.iter("ALIGNABLE_ANNOTATION")
+                ])
+    return tierAnnotations
+
+
 def parseXML(filepath: str) -> Element:
     return ElementTree.parse(filepath).getroot()
 
@@ -54,12 +84,12 @@ def parseXML(filepath: str) -> Element:
 def annotationsToAudacityStr(annotations: list) -> str:
     def toStr(x: Annotation) -> str:
         return "\t".join([str(x.start / 1000.), str(x.end / 1000.), x.tiers])
-    return "\n".join([toStr(a) for a in annotations])
+    return "\n".join([toStr(a) for a in annotations if a.tiers is not None])
 
 
 def convertEafToCsv(eafFilepath: str, csvFilepath: str, annotationsToStrFunction, tier: int) -> None:
     print("Converting", eafFilepath, "to", csvFilepath, "...")
-    annotations = parseAnnotationsFromEafFile(eafFilepath)[tier]
+    annotations = tier3parseAnnotationsFromEafFile(eafFilepath)[tier]
     csvString = annotationsToStrFunction(annotations)
     os.makedirs(dirname(csvFilepath), exist_ok=True)
     with open(csvFilepath, "w") as f:

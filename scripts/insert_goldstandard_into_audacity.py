@@ -35,6 +35,21 @@ def shift_labels(elan, audacity_folder, offset):
         return counter
 
 
+def shift_labels_2(elan, child, session, offset):
+    audacity = join(audacity_folder, 'audacity_goldstandard_B0', child, '_T', session, '.txt')  # audacity_labels_location
+    with open(elan, 'r', newline='') as el, open(audacity, 'w', newline='', encoding='utf-8') as aud:
+        reader = csv.reader(el, delimiter='\t')
+        writer = csv.writer(aud, delimiter='\t')
+        counter = 0
+        for line in reader:
+            counter += 1
+            start = int(float(line[0]) * 1000) - offset
+            stop = int(float(line[1]) * 1000) - offset
+            label = line[2]
+            writer.writerow((start, stop, label))
+        return counter
+
+
 def insert_elan_annotations_into_audacity(audacity_folder, counter):
     audacity_project_path = [join(audacity_folder, file) for file in listdir(audacity_folder) if file.endswith('.aup')][0]
     audacity_label_file_path = join(audacity_folder, 'audacity_goldstandard_S022_T01.txt')  # audacity_labels
@@ -61,7 +76,21 @@ def main():
     parser.add_argument('audacity_timestamps', help='audacity timestamps')
     args = vars(parser.parse_args())
     offset = calc_offset(args['elan_timestamps'], args['audacity_timestamps'])
-    counter = shift_labels(args['elan'], args['audacity_folder'], offset)
+    #counter = shift_labels(args['elan'], args['audacity_folder'], offset)
+    print('created audacity labels file')
+    #insert_elan_annotations_into_audacity(args['audacity_folder'], counter)
+    #print('done')
+
+
+def main_with_offset():
+    parser = argparse.ArgumentParser(description='Insert elan gold standard labels into an existing audacity.')
+    parser.add_argument('elan', help='elan annotations file')
+    parser.add_argument('child', help='existing audacity project')
+    parser.add_argument('session', help='existing audacity project')
+    parser.add_argument('offset', help='offset')
+    args = vars(parser.parse_args())
+    offset = args['offset']
+    counter = shift_labels_2(args['elan'], args['child'], args['session'], offset)
     print('created audacity labels file')
     #insert_elan_annotations_into_audacity(args['audacity_folder'], counter)
     #print('done')
