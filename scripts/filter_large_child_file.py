@@ -2,7 +2,6 @@ import csv
 import argparse
 import fnmatch
 import re
-from tqdm import tqdm
 from os.path import join, basename
 from os import walk
 
@@ -87,18 +86,19 @@ def filter_out_non_child_lines(infile, outfile):
 def rename_irregular_intonation(infile, outfile):
     with open(outfile, 'w', newline='') as outf:
         writer = csv.writer(outf, delimiter=';')
-        first_line = ['session', 'start', 'end', 'tier 0', 'tier 1', 'tier 2']
-        writer.writerow(first_line)
+        if header:
+            first_line = ['session', 'start', 'end', 'tier 0', 'tier 1', 'tier 2']
+            writer.writerow(first_line)
         with open(infile, 'r') as inf:
             reader = csv.reader(inf, delimiter=';')
             next(reader)
             for line in reader:
-                if ('irregualr intonation' in line[4]) and ('irregualr intonation' in line[5]):
-                    writer.writerow((line[0], line[1], line[2], line[3], line[4].replace('irregualr intonation', 'Another ASC Vocal Behaviour'), line[5].replace('irregualr intonation', 'Another ASC Vocal Behaviour')))
-                elif ('irregualr intonation' in line[4]):
-                    writer.writerow((line[0], line[1], line[2], line[3], line[4].replace('irregualr intonation', 'Another ASC Vocal Behaviour'), line[5]))
-                elif ('irregualr intonation' in line[5]):
-                    writer.writerow((line[0], line[1], line[2], line[3], line[4], line[5].replace('irregualr intonation', 'Another ASC Vocal Behaviour')))
+                if line[4] == 'irregualr intonation' and line[5] == 'irregualr intonation':
+                    writer.writerow((line[0], line[1], line[2], line[3], 'Another ASC Vocal Behaviour', 'Another ASC Vocal Behaviour'))
+                elif line[4] == 'irregualr intonation':
+                    writer.writerow((line[0], line[1], line[2], line[3], 'Another ASC Vocal Behaviour', line[5]))
+                elif line[5] == 'irregualr intonation':
+                    writer.writerow((line[0], line[1], line[2], line[3], line[4], 'Another ASC Vocal Behaviour'))
                 else:
                     writer.writerow((line[0], line[1], line[2], line[3], line[4], line[5]))
 
@@ -124,7 +124,7 @@ def main():
     #add_tier2_child_labels(args['infile'], args['outfile'], args['header'])
     #filter_out_short_ones(args['infile'], args['outfile'], args['header'])
     #filter_out_labels_without_tier1_tier2(args['infile'], args['outfile'], args['header'])
-    for file in tqdm(_find_csv_files(args['infolder'])):
+    for file in _find_csv_files(args['infolder']):
         #filter_out_non_child_lines(file, join(args['outfolder'], basename(file)))
         rename_irregular_intonation(file, join(args['outfolder'], basename(file)))
 
