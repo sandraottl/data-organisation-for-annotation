@@ -36,15 +36,15 @@ def shift_labels(elan, audacity_folder, offset):
 
 
 def shift_labels_2(elan, child, session, offset):
-    audacity = join(audacity_folder, 'audacity_goldstandard_B0', child, '_T', session, '.txt')  # audacity_labels_location
+    audacity = 'Y:\SandraOttl\de-enigma/annotations\de-enigma_audio_annotation_package/british/time_alligned_uau/tier_0_diarisation/B0' + child + '/audacity_labels_B0' + child + '_' + session + '.txt'  # audacity_labels_location
     with open(elan, 'r', newline='') as el, open(audacity, 'w', newline='', encoding='utf-8') as aud:
         reader = csv.reader(el, delimiter='\t')
         writer = csv.writer(aud, delimiter='\t')
         counter = 0
         for line in reader:
             counter += 1
-            start = int(float(line[0]) * 1000) - offset
-            stop = int(float(line[1]) * 1000) - offset
+            start = (int(float(line[0]) * 1000) - int(float(offset) * 1000)) / 1000
+            stop = (int(float(line[1]) * 1000) - int(float(offset) * 1000)) / 1000
             label = line[2]
             writer.writerow((start, stop, label))
         return counter
@@ -85,11 +85,12 @@ def main():
 def main_with_offset():
     parser = argparse.ArgumentParser(description='Insert elan gold standard labels into an existing audacity.')
     parser.add_argument('elan', help='elan annotations file')
-    parser.add_argument('child', help='existing audacity project')
-    parser.add_argument('session', help='existing audacity project')
-    parser.add_argument('offset', help='offset')
+    parser.add_argument('child', help='existing audacity project (two digits)')
+    parser.add_argument('session', help='existing audacity project (two digits)')
+    parser.add_argument('offsetElan', help='offset of elan')
+    parser.add_argument('offsetAud', help='offset of audacity')
     args = vars(parser.parse_args())
-    offset = args['offset']
+    offset = float(args['offsetElan']) - float(args['offsetAud'])
     counter = shift_labels_2(args['elan'], args['child'], args['session'], offset)
     print('created audacity labels file')
     #insert_elan_annotations_into_audacity(args['audacity_folder'], counter)
@@ -97,4 +98,4 @@ def main_with_offset():
 
 
 if __name__ == '__main__':
-    main()
+    main_with_offset()

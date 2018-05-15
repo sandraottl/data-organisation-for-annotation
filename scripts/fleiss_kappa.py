@@ -6,11 +6,10 @@ import fnmatch
 from os.path import basename, join
 from os import walk
 from decimal import Decimal
-from numpy import argmax
 from scipy.signal import medfilt
 
 
-TIER_LABELS = {0: ['t', 'c', 'a', 'z', '1', '2', '3', '4', '5', '6', '7', 'None'], 1: ['speech', 'non-speech', 'speech-like', 'shouting', 'shouting (speech)', 'shouting (non-speech)', 'unsure', 'unsure (echolalia)', 'None'], 2: ['echolalia (immediate)', 'echolalia (delayed)', 'Another ASC Vocal Behaviour', 'not specific to ASC', 'unsure (echolalia)', 'unsure (ASC behaviour)', ' ', '-s', 'irregualr intonation', 'None']}
+TIER_LABELS = {0: ['None', 't', 'c', 'a', 'z', '1', '2', '3', '4', '5', '6', '7'], 1: ['None', 'speech', 'non-speech', 'speech-like', 'shouting', 'shouting (speech)', 'shouting (non-speech)', 'unsure', 'unsure (echolalia)', 'no agreement'], 2: ['None', 'echolalia (immediate)', 'echolalia (delayed)', 'Another ASC Vocal Behaviour', 'not specific to ASC', 'unsure (echolalia)', 'unsure (ASC behaviour)', ' ', '-s', 'irregualr intonation', 'no agreement']}
 
 
 def quantised_labels(infile, interval):
@@ -20,7 +19,7 @@ def quantised_labels(infile, interval):
             #writer = csv.writer(outfile, delimiter=',')
         output = []
         line = next(reader)
-        for i in range(1000000):
+        for i in range(10000000000):
             if int(Decimal(line[0]) / interval) <= i < int(Decimal(line[1]) / interval):
                 output.append(line[2])
                 #writer.writerow([i / 10, line[2]])
@@ -38,14 +37,17 @@ def quantised_labels(infile, interval):
             else:
                 output.append('None')
                 #writer.writerow([i / 10, 'None'])
+    #print(output[499444:499460])
     return output
 
 
 def combine_annotators(annotators, tier):
     labels = TIER_LABELS[tier]
-    min_length = min(map(len, annotators))
-    mat = np.zeros((min_length, len(labels)))
-    for i in range(min_length):
+    max_length = max(map(len, annotators))
+    print(max_length)
+    annotators = list(map(lambda x: pad_to_n(x, max_length), annotators))
+    mat = np.zeros((max_length, len(labels)))
+    for i in range(max_length):
         for j, label in enumerate(labels):
             for annotator in annotators:
                 if annotator[i] == label:
@@ -53,27 +55,44 @@ def combine_annotators(annotators, tier):
     return mat
 
 
+def pad_to_n(a, N):
+    a += ['None'] * (N - len(a))
+    return a
+
+
 def majority_vote(mat, interval, tier):
     # majority = medfilt(argmax(mat, axis=1)).astype(int)
-    majority = argmax(mat, axis=1)
+    majority = np.argmax(mat, axis=1)
+    max_agreement = np.amax(mat, axis=1)
     print(majority)
     current_annotation = None
     annotations = []
-    for i, entry in enumerate(majority):
-        entry = TIER_LABELS[tier][entry]
+    for i, (label_index, agreement) in enumerate(zip(majority, max_agreement)):
+        # label 'no agreement' at last index
+        if agreement == 1:
+            label_index = -1
+            individual_annotations = [TIER_LABELS[tier][j] for j, votes in enumerate(mat[i]) if votes > 0]
+            label = TIER_LABELS[tier][label_index] + ' {' + ' | '.join(individual_annotations) + '}'
+        elif label_index == 0 and agreement < np.sum(mat[i]):
+            only_annotation = [TIER_LABELS[tier][j] for j, votes in enumerate(mat[i]) if votes > 0 and j != 0][0]
+            label = 'only one vote {' + only_annotation + '}'
+        else:
+            label = TIER_LABELS[tier][label_index]
         if not current_annotation:
             current_annotation = {}
             current_annotation['start'] = i * interval
             current_annotation['stop'] = (i + 1) * interval
-            current_annotation['label'] = entry
-        elif current_annotation['label'] == entry:
+            current_annotation['label'] = label
+        elif current_annotation['label'] == label:
             current_annotation['stop'] = (i + 1) * interval
         else:
             if not current_annotation['label'] == 'None':
                 annotations.append(current_annotation.copy())
             current_annotation['start'] = i * interval
             current_annotation['stop'] = (i + 1) * interval
-            current_annotation['label'] = entry
+            current_annotation['label'] = label
+    if (not current_annotation['label'] == 'None'):
+        annotations.append(current_annotation.copy())
     return annotations
 
 
@@ -171,7 +190,7 @@ def main_fleiss_kappa():
     # parser.add_argument('output', help='output file destination')
     args = vars(parser.parse_args())
     session_names_dict = session_names(args['input'])
-    for session_name in session_names_dict:
+    for session_name in sorted(session_names_dict):
         annotation_files = session_names_dict[session_name]
         print(annotation_files)
         annotators = [quantised_labels(annotator, args['interval']) for annotator in annotation_files]
@@ -184,7 +203,8 @@ def main_fleiss_kappa():
         #     output.write(str(fleiss_kappa))
         annotator_name_regex = r'^([a-zA-Z]*)_'
         annotator_names = '_'.join([re.search(annotator_name_regex, filename).group(1) for filename in map(basename, annotation_files)])
-        outfile_name = join(args['input'], annotator_names + session_name + '_fleiss.csv')
+        new_session_name = session_name[1:]
+        outfile_name = join(args['input'], new_session_name + '_fleisskappa.csv')
         with open(outfile_name, 'w', newline='') as outfile:
             outfile.write(str(fleiss_kappa))
 
@@ -196,7 +216,7 @@ def main_majority_vote():
     parser.add_argument('-tier', help='tier type (0, 1, 2)', type=int, default=1)
     args = vars(parser.parse_args())
     session_names_dict = session_names(args['input'])
-    for session_name in session_names_dict:
+    for session_name in sorted(session_names_dict):
         annotation_files = session_names_dict[session_name]
         print(annotation_files)
         annotators = [quantised_labels(annotator, args['interval']) for annotator in annotation_files]
@@ -204,7 +224,8 @@ def main_majority_vote():
         majority = majority_vote(mat, args['interval'], args['tier'])
         annotator_name_regex = r'^([a-zA-Z]*)_'
         annotator_names = '_'.join([re.search(annotator_name_regex, filename).group(1) for filename in map(basename, annotation_files)])
-        outfile_name = join(args['input'], annotator_names + session_name + '_majority.csv')
+        new_session_name = session_name[1:]
+        outfile_name = join(args['input'], new_session_name + '_goldstandard.csv')
         with open(outfile_name, 'w', newline='') as outfile:
             writer = csv.writer(outfile, delimiter=';')
             for el in majority:
@@ -213,7 +234,7 @@ def main_majority_vote():
 
 if __name__ == '__main__':
     #main_majority_vote()
-    main_fleiss_kappa()
+    main_majority_vote()
 
 
 
